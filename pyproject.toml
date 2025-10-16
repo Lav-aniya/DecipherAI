@@ -7,6 +7,11 @@ requires-python = ">=3.10"
 dependencies = [
     "dotenv>=0.9.9",
     "langchain>=0.3.27",
+    "langchain-community>=0.3.31",
     "langchain-groq>=0.3.8",
+    "langchain-huggingface>=0.3.1",
+    "numpy>=2.2.6",
     "pypdf>=6.1.1",
+    "scikit-learn>=1.7.2",
+    "sentence-transformers>=5.1.1",
 ]

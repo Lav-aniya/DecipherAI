@@ -16,6 +16,14 @@ JOB_ROLES_CONFIG = {
             {"skill": "SQL", "topic": "Basic Queries (e.g., Joins)", "count": 1, "difficulty": "Beginner"},
             {"skill": "Problem-Solving", "topic": "Algorithmic Thinking", "count": 1, "difficulty": "Beginner"}
         ]
+    },
+    "Machine Learning Engineer": {
+        "total_questions": 7,
+        "skill_distribution": [
+            {"skill": "Machine Learning", "topic": "Core Fundamentals (e.g., Algorithms)", "count": 2, "difficulty": "Beginner"},
+            {"skill": "Deep Learning", "topic": "differet architectures (e.g., CNN, Transformers)", "count": 3, "difficulty": "Beginner"},
+            {"skill": "Mathematics", "topic": "Linear Algebra, Probability, Statistics, Calculus related to AI", "count": 2, "difficulty": "Beginner"}
+        ]
     }
 }
 

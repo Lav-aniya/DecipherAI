@@ -11,9 +11,8 @@ reader = PdfReader("Aditya_Lavaniya_Resume.pdf")
 page = reader.pages[0]
 text = page.extract_text()
 #print(text)
-#load_dotenv(dotenv_path=".env")
-load_dotenv()
 
+load_dotenv(dotenv_path="secrets.env")
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
