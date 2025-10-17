@@ -42,8 +42,8 @@ class InterviewQuestion(BaseModel):
     benchmark_answer: str = Field(description="A detailed, ideal answer to the question.")
     rubric: List[RubricItem] = Field(description="A list of concepts for grading the answer.")
 
-
 def generate_question_and_benchmark(skill, topic, difficulty, candidate_profile):
+
     """
     Dynamically generates a question, benchmark answer, and rubric.
     """
@@ -52,7 +52,7 @@ def generate_question_and_benchmark(skill, topic, difficulty, candidate_profile)
     
     print(f"\n--- Generating a {difficulty} question for {skill} on {topic}... ---")
 
-    # 1. Instantiate the Pydantic parser with your desired data structure
+    # Instantiate the Pydantic parser with your desired data structure
     parser = PydanticOutputParser(pydantic_object=InterviewQuestion)
 
     system_prompt = """
@@ -62,7 +62,7 @@ def generate_question_and_benchmark(skill, topic, difficulty, candidate_profile)
     {format_instructions}
     """
     #context_str = json.dumps(candidate_profile, indent=2)
-    user_prompt_template = """
+    user_prompt = """
     Please generate a question based on the following criteria:
     - Skill: {skill}
     - Topic: {topic}
@@ -75,11 +75,10 @@ def generate_question_and_benchmark(skill, topic, difficulty, candidate_profile)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
-        ("human", user_prompt_template)
+        ("human", user_prompt)
     ]).partial(format_instructions=parser.get_format_instructions())
 
     #parser = JsonOutputParser
-
     #json_model = chat_model.bind(response_format={"type": "json_object"})
     chain = prompt | chat_model | parser
 
@@ -95,7 +94,20 @@ def generate_question_and_benchmark(skill, topic, difficulty, candidate_profile)
     except Exception as e:
         print(f"Error generating question with LangChain/Groq: {e}")
         return None
-    
+
+
+# --- Pydantic Data Structures for Evaluation ---
+class EvaluationItem(BaseModel):
+    concept: str = Field(description="The concept from the original rubric.")
+    covered: bool = Field(description="Whether the candidate's answer covered this concept.")
+    justification: str = Field(description="A brief justification for the decision.")
+    earned_points: int = Field(description="Points awarded for this specific concept.")
+
+class InterviewEvaluation(BaseModel):
+    evaluation_summary: str = Field(description="A one-sentence overall summary of the candidate's answer.")
+    evaluation_breakdown: List[EvaluationItem] = Field(description="A detailed breakdown of the evaluation against the rubric.")
+
+# NOT USING THIS 
 def get_embedding(text):
     """
     Gets the embedding for a piece of text using a local Sentence Transformer model.
@@ -103,11 +115,98 @@ def get_embedding(text):
     """
     return embedding_model.embed_query(text)
 
+# UPDATED EVALUATION
+# Using LLM as a Judge now, no more similarity scores
 def evaluate_answer(candidate_answer, benchmark_data):
     """
     Evaluates the candidate's answer against the benchmark 
     """
-    print("\n--- Performing granular evaluation... ---")
+    print("\n--- Performing evaluation... ---")
+
+    parser = PydanticOutputParser(pydantic_object=InterviewEvaluation)
+
+    system_prompt = """
+    You are a fair, strict, and expert technical interviewer. Your task is to evaluate a candidate's answer.
+    Analyze the provided information and determine if the candidate's answer covers the concepts in the rubric.
+    Provide a brief justification for your decision on each concept.
+    You must format your output as a JSON object that adheres to the provided schema.
+    {format_instructions}
+    """
+
+    user_prompt = """
+    Please evaluate the following interview response:
+
+    **Original Question:**
+    {question}
+
+    **Ideal Benchmark Answer:**
+    {benchmark_answer}
+
+    **Scoring Rubric:**
+    {rubric}
+
+    ---
+    **CANDIDATE'S ANSWER:**
+    {candidate_answer}
+    ---
+
+    Evaluate the candidate's answer against each concept in the rubric.
+    For each concept, set 'covered' to true if the candidate addressed it adequately, and false otherwise.
+    Award points accordingly. Provide a concise justification for each decision.
+    """
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", user_prompt)
+    ]).partial(format_instructions=parser.get_format_instructions())
+
+    chain = prompt | chat_model | parser
+
+    try:
+        # pass all context to the LLM for evaluation
+        response = chain.invoke({
+            "question": benchmark_data['question'],
+            "benchmark_answer": benchmark_data['benchmark_answer'],
+            "rubric": json.dumps(benchmark_data['rubric'], indent=2),
+            "candidate_answer": candidate_answer
+        })
+
+        # pRoceess the structured response to create the final feedback
+        earned_points = sum(item.earned_points for item in response.evaluation_breakdown)
+        total_points = sum(item.get('points', 0) for item in benchmark_data['rubric'])
+
+        feedback_parts = [response.evaluation_summary]
+
+        strengths = [item for item in response.evaluation_breakdown if item.covered]
+        improvements = [item for item in response.evaluation_breakdown if not item.covered]
+
+        if strengths:
+            feedback_parts.append("\n" + "**What you covered well:**")
+            for item in strengths:
+                feedback_parts.append(f"  - **{item.concept}:** {item.justification}")
+        
+        if improvements:
+            feedback_parts.append("\n" + "**Areas for improvement:**")
+            for item in improvements:
+                feedback_parts.append(f"  - **{item.concept}:** {item.justification}")
+                
+        return {
+            "earned_points": earned_points,
+            "total_points": total_points,
+            "feedback": "\n".join(feedback_parts)
+        }
+    
+    except Exception as e:
+        print(f"Error evaluating answer with AI Adjudicator: {e}")
+        return {
+            "earned_points": 0,
+            "total_points": sum(item.get('points', 0) for item in benchmark_data['rubric']),
+            "feedback": "An error occurred during evaluation."
+        }
+
+    '''
+
+    # Evaluation usin cosine_similarity
 
     SIMILARITY_THRESHOLD = 0.5
 
@@ -159,3 +258,5 @@ def evaluate_answer(candidate_answer, benchmark_data):
         "total_points": total_points,
         "feedback": "\n".join(feedback_parts)
     }
+
+    '''

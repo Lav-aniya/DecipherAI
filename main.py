@@ -68,14 +68,15 @@ def main_interview_loop(candidate_profile, interview_plan):
         result = {
             "question_details": question_details,
             "question_text": interview_material['question'],
+            "rubric": interview_material['rubric'],
             "candidate_answer": candidate_answer,
             "evaluation": evaluation
         }
         session_results.append(result)
 
-        print("\n--- Immediate Feedback ---")
-        print(f"Score: {evaluation['earned_points']} / {evaluation['total_points']}")
-        print(evaluation['feedback'])
+        # print("\n--- Immediate Feedback ---")
+        # print(f"Score: {evaluation['earned_points']} / {evaluation['total_points']}")
+        # print(evaluation['feedback'])
 
     return session_results
 
@@ -97,9 +98,14 @@ def generate_final_report(results, candidate_profile, role):
 
     print("\n--- DETAILED BREAKDOWN ---")
     for i, result in enumerate(results):
-        print(f"\n{i+1}. QUestoin (Skill: {result['question_details']['skill']})")
+        print(f"\n{i+1}. Questoin (Skill: {result['question_details']['skill']})")
         print(f"   '{result['question_text']}'")
         print(f"   Score: {result['evaluation']['earned_points']} / {result['evaluation']['total_points']}")
+
+        print("   --- Scoring Criteria ---")
+        for rubric_item in result['rubric']:
+            print(f"     - {rubric_item['concept']} ({rubric_item['points']} pts)")
+
         print("   --- Feedback Provided ---")
         # Indent the feedback for readability
         for line in result['evaluation']['feedback'].split('\n'):
