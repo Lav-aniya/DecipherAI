@@ -7,15 +7,25 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
 
-reader = PdfReader("Aditya_Lavaniya_Resume.pdf")
-page = reader.pages[0]
-text = page.extract_text()
-#print(text)
-
 load_dotenv(dotenv_path="secrets.env")
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
+
+def get_resume_text(pdf_path):
+    """Extracts text from all pages of a PDF file."""
+    try:
+        reader = PdfReader(pdf_path)
+        # Loop through all pages and join their text
+        full_text = "".join(page.extract_text() for page in reader.pages)
+        return full_text
+    except FileNotFoundError:
+        print(f"Error: The resume file was not found at '{pdf_path}'")
+        return None
+    except Exception as e:
+        print(f"Error reading PDF: {e}")
+        return None
+    
 def parse_resume(resume_text):
     if not GROQ_API_KEY :
         raise ValueError("API key not found")
@@ -27,7 +37,7 @@ def parse_resume(resume_text):
     Your task is to parse the provided resume text and extract key information in a structured JSON format.
     The JSON object must contain the following keys: "name", "skills", "total_experience", and "projects".
     If there is any other useful section like blogs, awards and achievements, scholarships add those as well.
-    "projects" should be a list of strings.
+    "projects" should be a dictionary with keys as project and value as the details of that project.
     "skills" should be a list of relevant technical skills.
     Include internships in Experience as well.
     Calculate the total experience in months if it exceeds 12 months use years based on the dates provided.
@@ -55,7 +65,13 @@ def parse_resume(resume_text):
         return None
     
 if __name__ == "__main__":
-    profile = parse_resume(text)
-    if profile:
-        print("\n -- Successfulyy Parsed Candidate Profile --")
-        print(json.dumps(profile, indent=2))
+    # to test this script directly
+    resume_file_path = "Aditya_Lavaniya_Resume.pdf"
+    
+    text = get_resume_text(resume_file_path)
+    
+    if text:
+        profile = parse_resume(text)
+        if profile:
+            print("\n-- Successfully Parsed Candidate Profile --")
+            print(json.dumps(profile, indent=2))

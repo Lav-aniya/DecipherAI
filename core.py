@@ -62,16 +62,49 @@ def generate_question_and_benchmark(skill, topic, difficulty, candidate_profile)
     {format_instructions}
     """
     #context_str = json.dumps(candidate_profile, indent=2)
-    user_prompt = """
-    Please generate a question based on the following criteria:
-    - Skill: {skill}
-    - Topic: {topic}
-    - Difficulty: {difficulty}
-    - Candidate Context: {candidate_profile}
+    # user_prompt = """
+    # Please generate a question based on the following criteria:
+    # - Skill: {skill}
+    # - Topic: {topic}
+    # - Difficulty: {difficulty}
+    # - Candidate Context: {candidate_profile}
 
-    Ensure the question is relevant to the candidate's background and the specified difficulty.
-    The benchmark answer should be what you'd expect from an ideal candidate.
-    """
+    # Ensure the question is relevant to the candidate's background and the specified difficulty.
+    # The benchmark answer should be what you'd expect from an ideal candidate.
+    # """
+
+    if topic.startswith("PROBE_SECTION:"):
+        try:
+            section_to_probe = topic.split(":")[1]
+            section_data = candidate_profile.get(section_to_probe)
+
+            if not section_data:
+                print(f"--> Section '{section_to_probe}' not found or empty. Asking a general question instead.")
+                user_prompt = "Please generate a general question for the skill {skill} with difficulty {difficulty}."
+            else:
+                print(f"--> Using specialized prompt to probe the '{section_to_probe}' section.")
+                user_prompt = f"""
+                Please generate a question that probes the candidate's experience based on their resume.
+                - Section to Probe: {section_to_probe}
+                - Skill to Relate to: {skill}
+                - Candidate's Data for this Section: {json.dumps(section_data, indent=2)}
+                
+                Instructions: Analyze the data and formulate one specific, open-ended question about an entry, relating it back to the specified skill ({skill}).
+                """
+        except IndexError:
+            print(f"--> Invalid probe format '{topic}'. Asking a general question.")
+            user_prompt = "Please generate a general question for the skill {skill}."
+    else:
+        # Your original user_prompt now lives inside the 'else' block
+        user_prompt = """
+        Please generate a question based on the following criteria:
+        - Topic: {topic}
+        - Skill: {skill}
+        - Difficulty: {difficulty}
+        - Candidate Context: {candidate_profile}
+
+        Ensure the question is relevant to the candidate's background and the specified difficulty.
+        """
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
