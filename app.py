@@ -1,7 +1,7 @@
 import gradio as gr
 import time
 import random
-
+from groq import Groq
 from prof import get_resume_text, parse_resume
 from interview_config import setup_interview_configuration, JOB_ROLES_CONFIG
 from core import generate_question_and_benchmark, evaluate_answer
@@ -42,7 +42,30 @@ def generate_report_markdown(results, candidate_profile, role):
         
     return "".join(report_parts)
 
+audio_client = Groq()
 # Gradio App deifinition
+def transcribe_audio(audio_path):
+    if not audio_path:
+        return ""
+    print("-- transcribing audio --")
+    with open(audio_path, "rb") as file:
+        transcription = audio_client.audio.transcriptions.create(
+            file=(audio_path, file.read()),
+            model="whisper-large-v3-turbo"
+        )
+    print(f"Transcription: {transcription.text}")
+    return transcription.text
+
+def generate_speech(text, file_path="ai_response.wav"):
+    print("-- generating audio --")
+    response = audio_client.audio.speech.create(
+        model="playai-tts",
+        voice="Fritz-PlayAI",
+        input=text,
+        response_format="wav"
+    )
+    response.write_to_file(file_path)
+    return file_path
 
 with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
 
@@ -70,8 +93,10 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
 
     #interview screen (initially hidden)
     with gr.Column(visible=False) as interview_screen:
-        chatbot = gr.Chatbot(label="Interview Chat", height=500)
-        answer_box = gr.Textbox(label="Your Answer", placeholder="Type your answer here ..")
+        chatbot = gr.Chatbot(label="Interview Chat", height=500, type="tuples")
+        text_input = gr.Textbox(label="Your Answer", placeholder="Type your answer here ..")
+        ai_audio_output = gr.Audio(label="Interviewer", autoplay=True, visible=True)
+        audio_input = gr.Audio(sources=["microphone"], type="filepath", label="Your Answer")
         submit_button = gr.Button("Submit Answer", variant="primary")
 
     #Report Screen (Initially hidden)
@@ -135,7 +160,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
                 for _ in range(skill_item['count']):
                     question_queue.append(skill_item)
 
-        random.shuffle(question_queue)
+        #random.shuffle(question_queue)
 
         current_state["question_queue"] = question_queue
 
@@ -161,21 +186,77 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
             session_state: current_state
         }
         
-    def chat_turn(user_answer, chat_history, current_state):
+    def chat_turn(text_input, audio_input, chat_history, current_state):
         """
-        Triggered by submitting an answer.
-        Evaluates the answer and presents the next question or the final report.
+        Handles a single turn of the interview.
+        Accepts EITHER text or audio input.
+        Produces BOTH text and audio output.
         """
-        # Append user's answer to chat
+        # --- 1. Determine User's Answer ---
+        user_answer = ""
+        if text_input:
+            user_answer = text_input
+        elif audio_input:
+            user_answer = transcribe_audio(audio_input)
+        
+        # if not user_answer: # Handle empty submission
+        #     # Just return the current state without doing anything
+        #     yield {
+        #         chatbot: chat_history, 
+        #         text_input: "", 
+        #         audio_input: None, 
+        #         ai_audio_output: None
+        #     }
+        #     return
+        
+        if not user_answer:
+            yield [
+                gr.update(), 
+                gr.update(), 
+                chat_history, 
+                "", 
+                None, 
+                gr.update(), 
+                None, 
+                gr.update()
+            ]
+            return
+
+        # --- 2. Update Chat with User's Answer ---
         chat_history.append((user_answer, None))
-        yield {chatbot: chat_history, answer_box: gr.update(value="", interactive=False)}
+        # Clear both inputs and show "thinking"
+        # yield {
+        #     chatbot: chat_history, 
+        #     text_input: "", 
+        #     audio_input: None, 
+        #     ai_audio_output: None
+        # }
+        yield [
+            gr.update(), 
+            gr.update(), 
+            chat_history, 
+            "", 
+            None, 
+            gr.update(), 
+            None, 
+            gr.update()
+        ]
 
-        # Show a "thinking" message
+        # --- 3. Process and Evaluate ---
         chat_history.append((None, "*Analyzing your answer...*"))
-        yield {chatbot: chat_history}
-        time.sleep(1) # Small delay for UX
+        #yield {chatbot: chat_history}
+        yield [
+            gr.update(), 
+            gr.update(), 
+            chat_history, 
+            gr.update(), 
+            gr.update(), 
+            gr.update(), 
+            gr.update(), 
+            gr.update()
+        ]
+        time.sleep(1) 
 
-        # Evaluate the previous answer
         evaluation = evaluate_answer(user_answer, current_state["current_question_material"])
 
         # Store the full result
@@ -188,33 +269,123 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
         }
         current_state["session_results"].append(result)
 
-        # Check if the interview is over
+        # --- 4. Handle End of Interview ---
         if not current_state["question_queue"]:
-            # Interview is over, generate report
             final_report_md = generate_report_markdown(
-                current_state["session_results"], current_state["candidate_profile"], current_state["interview_plan"].get('role_name', 'Selected Role')
+                current_state["session_results"], 
+                current_state["candidate_profile"], 
+                current_state["interview_plan"].get('role_name', 'Selected Role')
             )
-            yield {
-                interview_screen: gr.update(visible=False),
-                report_screen: gr.update(visible=True),
-                final_report_display: gr.update(value=final_report_md)
-            }
-        else:
-            # There are more questions, generate the next one
-            next_question_details = current_state["question_queue"].pop(0)
-            current_state["current_question_details"] = next_question_details
-            next_question_material = generate_question_and_benchmark(
-                next_question_details['skill'], next_question_details['topic'],
-                next_question_details['difficulty'], current_state["candidate_profile"]
-            )
-            current_state["current_question_material"] = next_question_material
             
-            chat_history.append((None, next_question_material['question']))
-            yield {
-                chatbot: chat_history,
-                answer_box: gr.update(interactive=True), # Re-enable textbox
-                session_state: current_state
-            }
+            ai_text_response = "The interview is now complete. Here is your final report."
+            ai_audio_path = generate_speech(ai_text_response)
+            
+            # yield {
+            #     interview_screen: gr.update(visible=False),
+            #     report_screen: gr.update(visible=True),
+            #     final_report_display: gr.update(value=final_report_md),
+            #     ai_audio_output: gr.update(value=ai_audio_path, visible=True)
+            # }
+            yield [
+                gr.update(visible=False), # interview_screen
+                gr.update(visible=True),  # report_screen
+                gr.update(),              # chatbot
+                gr.update(),              # text_input
+                gr.update(),              # audio_input
+                gr.update(value=final_report_md), # final_report_display
+                gr.update(value=ai_audio_path, visible=True), # ai_audio_output
+                gr.update()               # session_state
+            ]
+            return # End the function
+
+        # --- 5. Generate Next Question ---
+        next_question_details = current_state["question_queue"].pop(0)
+        current_state["current_question_details"] = next_question_details
+        next_question_material = generate_question_and_benchmark(
+            next_question_details['skill'], 
+            next_question_details['topic'],
+            next_question_details['difficulty'], 
+            current_state["candidate_profile"]
+        )
+        current_state["current_question_material"] = next_question_material
+        
+        ai_text_response = next_question_material['question']
+        
+        # --- 6. Produce Both Outputs ---
+        ai_audio_path = generate_speech(ai_text_response)
+        
+        chat_history.append((None, ai_text_response))
+        # yield {
+        #     chatbot: chat_history,
+        #     session_state: current_state,
+        #     ai_audio_output: gr.update(value=ai_audio_path, visible=True)
+        # }
+        yield [
+            gr.update(), # interview_screen
+            gr.update(), # report_screen
+            chat_history, # chatbot
+            gr.update(), # text_input
+            gr.update(), # audio_input
+            gr.update(), # final_report_display
+            gr.update(value=ai_audio_path, visible=True), # ai_audio_output
+            current_state # session_state
+        ]
+
+    # def chat_turn(user_answer, chat_history, current_state):
+    #     """
+    #     Triggered by submitting an answer.
+    #     Evaluates the answer and presents the next question or the final report.
+    #     """
+
+    #     # Append user's answer to chat
+    #     chat_history.append((user_answer, None))
+    #     yield {chatbot: chat_history, answer_box: gr.update(value="", interactive=False)}
+
+    #     # Show a "thinking" message
+    #     chat_history.append((None, "*Analyzing your answer...*"))
+    #     yield {chatbot: chat_history}
+    #     time.sleep(1) # Small delay for UX
+
+    #     # Evaluate the previous answer
+    #     evaluation = evaluate_answer(user_answer, current_state["current_question_material"])
+
+    #     # Store the full result
+    #     result = {
+    #         "question_details": current_state["current_question_details"],
+    #         "question_text": current_state["current_question_material"]['question'],
+    #         "rubric": current_state["current_question_material"]['rubric'],
+    #         "candidate_answer": user_answer,
+    #         "evaluation": evaluation
+    #     }
+    #     current_state["session_results"].append(result)
+
+    #     # Check if the interview is over
+    #     if not current_state["question_queue"]:
+    #         # Interview is over, generate report
+    #         final_report_md = generate_report_markdown(
+    #             current_state["session_results"], current_state["candidate_profile"], current_state["interview_plan"].get('role_name', 'Selected Role')
+    #         )
+    #         yield {
+    #             interview_screen: gr.update(visible=False),
+    #             report_screen: gr.update(visible=True),
+    #             final_report_display: gr.update(value=final_report_md)
+    #         }
+    #     else:
+    #         # There are more questions, generate the next one
+    #         next_question_details = current_state["question_queue"].pop(0)
+    #         current_state["current_question_details"] = next_question_details
+    #         next_question_material = generate_question_and_benchmark(
+    #             next_question_details['skill'], next_question_details['topic'],
+    #             next_question_details['difficulty'], current_state["candidate_profile"]
+    #         )
+    #         current_state["current_question_material"] = next_question_material
+            
+    #         chat_history.append((None, next_question_material['question']))
+    #         yield {
+    #             chatbot: chat_history,
+    #             answer_box: gr.update(interactive=True), # Re-enable textbox
+    #             session_state: current_state
+    #         }
 
     def restart_interview():
         """Resets the UI to the initial setup screen."""
@@ -223,13 +394,30 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
             interview_screen: gr.update(visible=False),
             report_screen: gr.update(visible=False),
             chatbot: [],
-            answer_box: "",
+            text_input: "",       # <-- Clear text input
+            audio_input: None,    # <-- Clear audio input
+            ai_audio_output: None,# <-- Clear audio output
             status_box: "",
             session_state: {
                 "candidate_profile": None, "interview_plan": None, "question_queue": [],
                 "session_results": [], "current_question_material": None, "current_question_details": None
             }
         }
+    
+    # def restart_interview():
+    #     """Resets the UI to the initial setup screen."""
+    #     return {
+    #         setup_screen: gr.update(visible=True),
+    #         interview_screen: gr.update(visible=False),
+    #         report_screen: gr.update(visible=False),
+    #         chatbot: [],
+    #         answer_box: "",
+    #         status_box: "",
+    #         session_state: {
+    #             "candidate_profile": None, "interview_plan": None, "question_queue": [],
+    #             "session_results": [], "current_question_material": None, "current_question_details": None
+    #         }
+    #     }
 
     # --- Connecting UI Components to Functions ---
     start_button.click(
@@ -237,23 +425,55 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
         inputs=[resume_file, role_dropdown, session_state],
         outputs=[setup_screen, interview_screen, chatbot, status_box, session_state]
     )
+
+    # Define the inputs and outputs for a chat turn
+    # This makes it easy to reuse
+    chat_inputs = [text_input, audio_input, chatbot, session_state]
+    chat_outputs = [
+        interview_screen, report_screen, chatbot, 
+        text_input, audio_input,  # Clear both inputs
+        final_report_display, ai_audio_output, # Update both outputs
+        session_state
+    ]
     
-    answer_box.submit(
+    text_input.submit(
         fn=chat_turn,
-        inputs=[answer_box, chatbot, session_state],
-        outputs=[interview_screen, report_screen, chatbot, answer_box, final_report_display, session_state]
+        inputs=chat_inputs,
+        outputs=chat_outputs
     )
 
-    submit_button.click(
+    audio_input.stop_recording(
         fn=chat_turn,
-        inputs=[answer_box, chatbot, session_state],
-        outputs=[interview_screen, report_screen, chatbot, answer_box, final_report_display, session_state]
+        inputs=chat_inputs,
+        outputs=chat_outputs
     )
+
+    # answer_box.submit(
+    #     fn=chat_turn,
+    #     inputs=[answer_box, chatbot, session_state],
+    #     outputs=[interview_screen, report_screen, chatbot, answer_box, final_report_display, session_state]
+    # )
+
+    # submit_button.click(
+    #     fn=chat_turn,
+    #     inputs=[answer_box, chatbot, session_state],
+    #     outputs=[interview_screen, report_screen, chatbot, answer_box, final_report_display, session_state]
+    # )
     
     restart_button.click(
         fn=restart_interview,
         inputs=None,
-        outputs=[setup_screen, interview_screen, report_screen, chatbot, answer_box, status_box, session_state]
+        outputs=[
+            setup_screen, 
+            interview_screen, 
+            report_screen, 
+            chatbot, 
+            text_input,         # <-- Must be in outputs
+            audio_input,        # <-- Must be in outputs
+            ai_audio_output,    # <-- Must be in outputs
+            status_box, 
+            session_state
+        ]
     )
 
 if __name__ == "__main__":
