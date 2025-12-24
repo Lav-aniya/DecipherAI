@@ -45,7 +45,6 @@ def parse_resume(resume_text):
     """
     model = ChatGroq(model_name = "llama-3.3-70b-versatile",
                      groq_api_key=GROQ_API_KEY)
-    # this will automatically parse the model's JSON string output into a python dicttionary
     parser = JsonOutputParser()
 
     prompt = ChatPromptTemplate.from_messages([
@@ -65,7 +64,6 @@ def parse_resume(resume_text):
         return None
     
 if __name__ == "__main__":
-    # to test this script directly
     resume_file_path = "Aditya_Lavaniya_Resume.pdf"
     
     text = get_resume_text(resume_file_path)

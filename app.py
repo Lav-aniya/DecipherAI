@@ -43,7 +43,7 @@ def generate_report_markdown(results, candidate_profile, role):
     return "".join(report_parts)
 
 audio_client = Groq()
-# Gradio App deifinition
+
 def transcribe_audio(audio_path):
     if not audio_path:
         return ""
@@ -192,7 +192,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
         Accepts EITHER text or audio input.
         Produces BOTH text and audio output.
         """
-        # --- 1. Determine User's Answer ---
+        
         user_answer = ""
         if text_input:
             user_answer = text_input
@@ -222,7 +222,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
             ]
             return
 
-        # --- 2. Update Chat with User's Answer ---
+        
         chat_history.append((user_answer, None))
         # Clear both inputs and show "thinking"
         # yield {
@@ -242,7 +242,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
             gr.update()
         ]
 
-        # --- 3. Process and Evaluate ---
+        
         chat_history.append((None, "*Analyzing your answer...*"))
         #yield {chatbot: chat_history}
         yield [
@@ -269,7 +269,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
         }
         current_state["session_results"].append(result)
 
-        # --- 4. Handle End of Interview ---
+        
         if not current_state["question_queue"]:
             final_report_md = generate_report_markdown(
                 current_state["session_results"], 
@@ -298,7 +298,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
             ]
             return # End the function
 
-        # --- 5. Generate Next Question ---
+        
         next_question_details = current_state["question_queue"].pop(0)
         current_state["current_question_details"] = next_question_details
         next_question_material = generate_question_and_benchmark(
@@ -311,7 +311,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
         
         ai_text_response = next_question_material['question']
         
-        # --- 6. Produce Both Outputs ---
+        
         ai_audio_path = generate_speech(ai_text_response)
         
         chat_history.append((None, ai_text_response))
@@ -419,7 +419,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="DecipherAI") as demo:
     #         }
     #     }
 
-    # --- Connecting UI Components to Functions ---
+    
     start_button.click(
         fn=start_interview,
         inputs=[resume_file, role_dropdown, session_state],

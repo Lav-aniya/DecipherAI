@@ -37,7 +37,6 @@ JOB_ROLES_CONFIG = {
                 "skill": "Python",
                 "difficulty": "Advanced",
                 "count": 2,
-                # <-- NEW: A list of specific concepts for more targeted questions.
                 "concepts": [
                     "The Global Interpreter Lock (GIL): its impact and workarounds",
                     "Advanced decorator patterns (e.g., with arguments, class decorators)",
@@ -50,7 +49,6 @@ JOB_ROLES_CONFIG = {
                 "skill": "System Design",
                 "difficulty": "Intermediate",
                 "count": 1,
-                 # <-- NEW: The AI will be instructed to ask about a project from the candidate's resume.
                 "topic": "PROBE_PROJECT_SKILL"
             },
             {
@@ -68,7 +66,6 @@ JOB_ROLES_CONFIG = {
                 "skill": "Behavioral",
                 "difficulty": "N/A",
                 "count": 1,
-                # <-- NEW: Provides a framework for the question.
                 "topic": "Describe a time you had a major technical disagreement with a colleague.",
                 "framework": "STAR"
             }
@@ -105,7 +102,7 @@ JOB_ROLES_CONFIG = {
         "skill_distribution": [
             {
                 "skill": "Machine Learning",
-                "difficulty": "Intermediate", # <-- Adjusted difficulty
+                "difficulty": "Intermediate", 
                 "count": 4,
                 "concepts": [
                     "Bias-Variance Tradeoff", "Cross-Validation Techniques",
@@ -114,20 +111,19 @@ JOB_ROLES_CONFIG = {
             },
             {
                 "skill": "Deep Learning",
-                "difficulty": "Intermediate", # <-- Adjusted difficulty
+                "difficulty": "Intermediate",
                 "count": 4,
-                # Corrected typo and made concepts more specific
                 "concepts": [
                     "Role of activation functions in a neural network",
                     "Explain the self-attention mechanism in Transformers",
                     "How to prevent overfitting in a deep neural network",
                     "Differences between a CNN and an RNN",
-                    "PROBE_PROJECT_SKILL" # <-- Ask about a specific DL project on their resume
+                    "PROBE_PROJECT_SKILL"
                 ]
             },
             {
                 "skill": "Mathematics for AI",
-                "difficulty": "Intermediate", # <-- Adjusted difficulty
+                "difficulty": "Intermediate",
                 "count": 4,
                 "concepts": [
                     "The role of the chain rule in backpropagation",
@@ -138,7 +134,7 @@ JOB_ROLES_CONFIG = {
             {
                 "skill": "Resume Deep Dive",
                 "difficulty": "N/A",
-                "count": 4, # <-- Set how many resume questions you want
+                "count": 4, 
                 "concepts": [
                     "PROBE_SECTION:projects",
                     "PROBE_SECTION:work_experience",
@@ -174,20 +170,20 @@ def setup_interview_configuration(role, candidate_profile):
     Creates a DYNAMIC interview plan by tailoring the base configuration
     using the candidate's specific resume profile.
     """
-    print(f"--- Setting up interview configuration for role: {role}... ---")
+    print(f"Setting up interview configuration for role: {role}")
     
     if role not in JOB_ROLES_CONFIG:
         print("Role not found in configuration.")
         return None
 
-    # 1. Make a deep copy to avoid changing the original config
+    # Make a deep copy to avoid changing the original config
     tailored_plan = copy.deepcopy(JOB_ROLES_CONFIG[role])
     
     candidate_skills = [skill.lower() for skill in candidate_profile.get("skills", [])]
     
     print("--- Analyzing candidate profile to tailor interview plan... ---")
     
-    # 2. The core tailoring logic
+    # tailoring logic
     for question_block in tailored_plan.get("skill_distribution", []):
         # Example 1: Make a generic topic more specific
         if question_block["skill"] == "Cloud (AWS)" and "terraform" in candidate_skills:

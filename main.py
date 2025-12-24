@@ -3,7 +3,7 @@ from pypdf import PdfReader
 import json
 
 from prof import parse_resume
-from Interview_config import setup_interview_configuration, JOB_ROLES_CONFIG
+from interview_config import setup_interview_configuration, JOB_ROLES_CONFIG
 from core import generate_question_and_benchmark, evaluate_answer
 
 def select_role():
@@ -22,7 +22,7 @@ def select_role():
                 print("invalid number. try again")
         except ValueError:
             print("Invalid inpiut, please enter a number.")
-
+    
 def main_interview_loop(candidate_profile, interview_plan):
     session_results = []
 
@@ -129,7 +129,6 @@ if __name__ == "__main__":
     if not candidate_profile:
         exit()
     
-    # MODIFICATION: Interactive role selection
     selected_role = select_role()
 
     interview_plan = setup_interview_configuration(selected_role, candidate_profile)

@@ -19,24 +19,24 @@ from typing import List
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-# Load the embedding model once when the script starts.
+
 print("Loading embedding model...")
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 print("Embedding model loaded.")
 
-# Initialize the chat model once.
+
 chat_model = ChatGroq(
     model_name="llama-3.3-70b-versatile", 
     groq_api_key=GROQ_API_KEY
 )
 
 
-# Define the structure for a single item in the rubric
+# structure for a single item in the rubric
 class RubricItem(BaseModel):
     concept: str = Field(description="The specific concept or skill being evaluated.")
     points: int = Field(description="The number of points this concept is worth.")
 
-# Define the main structure for the entire JSON output
+# main structure for the entire JSON output
 class InterviewQuestion(BaseModel):
     question: str = Field(description="The text of the interview question.")
     benchmark_answer: str = Field(description="A detailed, ideal answer to the question.")
@@ -95,7 +95,6 @@ def generate_question_and_benchmark(skill, topic, difficulty, candidate_profile)
             print(f"--> Invalid probe format '{topic}'. Asking a general question.")
             user_prompt = "Please generate a general question for the skill {skill}."
     else:
-        # Your original user_prompt now lives inside the 'else' block
         user_prompt = """
         Please generate a question based on the following criteria:
         - Topic: {topic}
@@ -129,7 +128,7 @@ def generate_question_and_benchmark(skill, topic, difficulty, candidate_profile)
         return None
 
 
-# --- Pydantic Data Structures for Evaluation ---
+# Pydantic Data Structures for Evaluation ---
 class EvaluationItem(BaseModel):
     concept: str = Field(description="The concept from the original rubric.")
     covered: bool = Field(description="Whether the candidate's answer covered this concept.")
