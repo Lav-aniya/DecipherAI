@@ -11,3 +11,5 @@ wheels/
 .venv
 
 Aditya_Lavaniya_Resume.pdf
+
+secrets.env
